@@ -1,0 +1,312 @@
+import com.liferay.portal.kernel.util.ReleaseInfo
+
+ext {
+	appServerParentDir = "$sdkDir/appServerParentPath"
+	appServerVersion = getProperty(appServerType + ".appServerVersion")
+	appServerDir = "$appServerParentDir/$appServerType-$appServerVersion"
+	appServerDeployPath = getProperty(appServerType + ".appServerDeployPath")
+	appServerDeployDir = "$appServerDir/$appServerDeployPath"
+	appServerLibGlobalPath = getProperty(appServerType +
+		".appServerLibGlobalPath")
+	appServerLibGlobalDir = "$appServerDir/$appServerLibGlobalPath"
+	appServerPortalPath = getProperty(appServerType + ".appServerPortalPath")
+	appServerPortalDir = "$appServerDir/$appServerPortalPath"
+	appServerLibPortalDir = "$appServerPortalDir/WEB-INF/lib"
+	autoDeployDir = "$appServerParentDir/deploy"
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = '2.1'
+}
+
+buildscript {
+	configurations.all {
+		resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+	}
+
+	repositories {
+		maven {
+			url 'http://repository.liferay.com/nexus/content/groups/public'
+		}
+		mavenCentral()
+	}
+
+	dependencies {
+		classpath(
+			[group: 'com.liferay.portal',	name: 'portal-service',	version: '7.0.0-SNAPSHOT'],
+			[group: 'org.dm.gradle',		name: 'bundle',			version: '0.4']
+		)
+	}
+}
+
+configurations {
+	all {
+		resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+	}
+	portalWeb
+}
+
+dependencies {
+	portalWeb group: 'com.liferay.portal', name: 'portal-web', version: '7.0.0-SNAPSHOT'
+}
+
+allprojects {
+	//apply plugin: "eclipse"
+	apply plugin: "war"
+
+	task all
+	task buildCss(type: JavaExec)
+	task buildTheme
+	task compile
+	task copyTlds
+	task deploy
+	task directDeploy
+	task getGemVersions
+	task merge(type: Copy)
+	task mergeLanguageKeys(type: Copy)
+	
+	task unzipOriginalWarFile(type: Copy)
+	task warAlloyPortlet
+
+	repositories {
+		maven {
+			url 'http://repository.liferay.com/nexus/content/groups/public'
+		}
+		mavenCentral()
+	}
+}
+
+task unzipCommonCss(type: Copy) {
+	from(zipTree(configurations.portalWeb.singleFile)) {
+		include "html/css/common/**/*"
+	}
+	into "$sdkDir/dist"
+}
+
+allprojects {
+	if (file("$projectDir/docroot").exists() ||
+		file("$projectDir/src").exists()) {
+
+		configurations {
+			all {
+				resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+			}
+			buildCssClasspath.extendsFrom basePortalClasspath
+			portalImpl
+		}
+
+		dependencies {
+			archives "$rootDir/dist"
+
+			buildCssClasspath(
+				[group: 'com.liferay',			name: 'com.liferay.ruby-gems',	version: '1.00'],
+				[group: 'javax.portlet',		name: 'portlet-api',			version: '2.0'],
+				[group: 'org.apache.ant',		name: 'ant',					version: '1.8.2'],
+				[group: 'org.jruby',			name: 'jruby-complete',			version: '1.6.5'],
+				[group: 'org.mozilla',			name: 'rhino',					version: '1.7R4'],
+				[group: 'org.springframework',	name: 'spring-web',				version: '3.2.10.RELEASE'],
+				[group: 'struts',				name: 'struts',					version: '1.2.9']
+			)
+
+			portalImpl group: 'com.liferay.portal', name: 'portal-impl', version: '7.0.0-SNAPSHOT'
+		}
+
+		ext {
+			// Check if plugin is OSGi type
+
+			if (file("bnd.bnd").exists()) {
+				osgiPlugin = true
+			}
+			else {
+				osgiPlugin = false
+			}
+
+			// Set archive type
+
+			if (project.name =~ "-shared" ||
+				osgiPlugin == true) {
+
+				pluginPackaging = "jar"
+			}
+			else {
+				pluginPackaging = "war"
+			}
+
+			// Set directories for different project types
+
+			if (file("$projectDir/src").exists()) {
+				pluginLibDir = new File("$projectDir/lib")
+				pluginSrcDir = new File("$projectDir/src")
+			}
+			else {
+				pluginLibDir = new File("$projectDir/docroot/WEB-INF/lib")
+				pluginSrcDir = new File("$projectDir/docroot/WEB-INF/src")
+			}
+
+			// Set direct deploy properties
+
+			deployerJvmArgsExt="-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir"
+			deployerJvmArgsHook="-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir"
+			deployerJvmArgsLayouttpl=""
+			deployerJvmArgsPortlet=["-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir",
+				"-Ddeployer.theme.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-theme.tld",
+				"-Ddeployer.util.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-util.tld",
+				"-Ddeployer.aui.taglib.dtd=$appServerPortalDir/WEB-INF/tld/aui.tld",
+				"-Ddeployer.portlet.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-portlet.tld",
+				"-Ddeployer.portlet-ext.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-portlet-ext.tld",
+				"-Ddeployer.security.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-security.tld",
+				"-Ddeployer.staging.taglib.dtd=util-taglib/classes/META-INF/liferay-staging.tld",
+				"-Ddeployer.ui.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-ui.tld",
+				"-Ddeployer.custom.portlet.xml=$autoDeployCustomPortletXml"]
+			deployerJvmArgsTheme=["-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir",
+				"-Ddeployer.theme.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-theme.tld",
+				"-Ddeployer.util.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-util.tld"]
+			deployerJvmArgsWeb="-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir"
+
+			// Set OSGi properties
+
+			if (osgiPlugin == true) {
+				autoDeployDir = getXMLProp("auto.deploy.dir", autoDeployDir)
+				ignoreOsgiPortalClasspath =
+					getXMLProp("ignore.osgi.portal.classpath", "")
+				moduleAutoDeployDir =
+					getXMLProp("module.auto.deploy.dir", autoDeployDir)
+				osgiIdeDependencies = getXMLProp("osgi.ide.dependencies", "")
+				osgiRuntimeDependencies =
+					getXMLProp("osgi.runtime.dependencies", "")
+				osgiRuntimeDependenciesFiles = fileTree(dir: pluginLibDir,
+					include: osgiRuntimeDependencies)
+			}
+
+			// Misc properties
+
+			liferayHookXml = file("$projectDir/docroot/WEB-INF/liferay-hook.xml")
+		}
+
+		// Set java source directory
+
+		sourceSets {
+			main {
+				java {
+					srcDir pluginSrcDir
+				}
+			}
+		}
+
+		// Configure output directory for JAR and WAR files
+
+		libsDirName = "../../../dist"
+
+		// Task configurations
+
+		all {
+			dependsOn build
+			dependsOn clean
+		}
+
+		build.mustRunAfter(clean)
+
+		buildCss {
+			args = [
+				"sass.dir=/",
+				"sass.docroot.dir=$projectDir/docroot",
+				"sass.portal.common.dir=$sdkDir/dist/html/css/common"
+			]
+			classpath = configurations.buildCssClasspath
+			dependsOn compileJava
+			dependsOn rootProject.unzipCommonCss
+			main = "com.liferay.portal.tools.SassToCssBuilder"
+		}
+
+		compile.dependsOn(compileJava)
+
+		deploy {
+			if (pluginPackaging == "jar") {
+				dependsOn jar
+			}
+			else {
+				dependsOn war
+
+				doLast {
+					copy {
+						from pluginFile
+						into autoDeployDir
+					}
+				}
+			}
+
+			if (osgiPlugin == true) {
+				doFirst {
+					copy {
+						from osgiRuntimeDependenciesFiles
+						into moduleAutoDeployDir
+					}
+				}
+			}
+		}
+
+		jar {
+			dependsOn cleanJar
+			from pluginSrcDir
+
+			/*if (osgiPlugin == true) {
+				apply plugin: "bundle"
+
+				bundle {
+					instruction "app.server.portal.dir", appServerPortalDir
+					instruction "plugin.name", project.name
+					instruction "plugin.version", pluginVersion
+					instruction "javac.compiler", javacCompiler
+					instruction "javac.debug", javacDebug
+					instruction "javac.deprecation", javacDeprecation
+					instruction "javac.encoding", javacEncoding
+					instruction "release.info.vendor", ReleaseInfo.getVendor()
+					instruction "release.info.version", ReleaseInfo.getVersion()
+					instruction "-include", "$sdkDir/common.bnd"
+					instruction "-include", "$projectDir/bnd.bnd"
+				}
+
+				version pluginFullVersion
+			}*/
+		}
+
+		war {
+			doFirst {
+				/*if (file("$projectDir/tmp").exists()) {
+					ext.docrootDir = "tmp"
+				}
+				else {
+					ext.docrootDir = "docroot"
+				}*/
+
+				copy {
+					from pluginSrcDir
+					exclude "**/*.java"
+					into file("docroot/WEB-INF/classes")
+				}
+			}
+
+			dependsOn cleanWar
+			from "docroot"
+			exclude "_diffs.*", "_diffs/**"
+			exclude "WEB-INF/lib/*"
+
+			if (pluginPackaging == "jar") {
+				dependsOn jar
+				enabled = false
+			}
+		}
+
+		if (file(liferayHookXml.toString() + ".processed").exists()) {
+			war {
+				exclude "WEB-INF/liferay-hook.xml"
+				rename "liferay-hook\\.xml\\.processed", "liferay-hook.xml"
+			}
+		}
+	}
+	else {
+		tasks.each {
+			it.enabled = false
+		}
+	}
+}

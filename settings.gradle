@@ -1,0 +1,60 @@
+def commandDir = System.getProperty("user.dir")
+
+String[] pluginsExcludesList =
+	pluginsExcludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
+
+String[] pluginsIncludesList =
+	pluginsIncludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
+
+if (rootProject.dir.toString() != commandDir.toString()) {
+	pluginsIncludesList = commandDir.toString().replaceAll(".+[\\\\/]", "")
+}
+
+FileTree projectScripts = fileTree(rootDir) {
+	if (pluginsIncludes != "" && pluginsIncludes != "*") {
+		String[] projectScriptsIncludes = pluginsIncludesList.collect {
+			"**/" + it + "/build.gradle"
+		}
+
+		projectScriptsIncludes.each { 
+			include it
+		}
+	}
+	else {
+		include "**/build.gradle"
+	}
+
+	if (pluginsExcludes != "") {
+		String[] projectScriptsExcludes = pluginsExcludesList.collect {
+			"**/" + it + "/build.gradle"
+		}
+
+		projectScriptsExcludes.each {
+			exclude it
+		}
+	}
+
+	exclude "build.gradle"	//exclude root
+}
+
+List projectList = []
+
+projectScripts.each {
+	URI projectScriptUri = it.toURI()
+	URI rootDirUri = rootDir.toURI()
+	URI projectScriptRelativeUri = rootDirUri.relativize(projectScriptUri)
+	String projectScriptRelativeStr = projectScriptRelativeUri.toString()
+	String projectDirRelativeStr =
+		projectScriptRelativeStr.replaceFirst("/build.gradle", "")
+	String projectPath = projectDirRelativeStr.replaceAll("/", ":")
+
+	//projectList << projectPath
+
+	include projectPath
+
+	def projectSettings = it.toString().replaceFirst("build.gradle", "settings.gradle")
+
+	if (file(projectSettings).exists()) {
+		apply from: projectSettings
+	}
+}
