@@ -37,7 +37,29 @@ FileTree projectScripts = fileTree(rootDir) {
 	exclude "build.gradle"	//exclude root
 }
 
-List projectList = []
+def addProject
+
+addProject = {
+	include it
+
+	String projectPropertiesFileStr
+
+	projectPropertiesFileStr = it.replaceAll(":", "/")
+	projectPropertiesFileStr = projectPropertiesFileStr + "/gradle.properties"
+	projectPropertiesFileStr = projectPropertiesFileStr.replaceFirst("^/", "")
+
+	File projectPropertiesFile = new File(projectPropertiesFileStr)
+
+	if (projectPropertiesFile.exists()) {
+		Properties projectProperties = new Properties()
+
+		projectProperties.load(new FileInputStream(projectPropertiesFile))
+
+		projectProperties.dependencyProjects.split(",").each {
+			addProject(it)
+		}
+	}
+}
 
 projectScripts.each {
 	URI projectScriptUri = it.toURI()
@@ -46,15 +68,7 @@ projectScripts.each {
 	String projectScriptRelativeStr = projectScriptRelativeUri.toString()
 	String projectDirRelativeStr =
 		projectScriptRelativeStr.replaceFirst("/build.gradle", "")
-	String projectPath = projectDirRelativeStr.replaceAll("/", ":")
+	String projectPath = projectDirRelativeStr.replaceAll("[\\/]", ":")
 
-	//projectList << projectPath
-
-	include projectPath
-
-	def projectSettings = it.toString().replaceFirst("build.gradle", "settings.gradle")
-
-	if (file(projectSettings).exists()) {
-		apply from: projectSettings
-	}
+	addProject(projectPath)
 }

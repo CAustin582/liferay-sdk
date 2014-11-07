@@ -87,31 +87,19 @@ allprojects {
 	if (file("$projectDir/docroot").exists() ||
 		file("$projectDir/src").exists()) {
 
-		configurations {
-			all {
-				resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-			}
-			buildCssClasspath.extendsFrom basePortalClasspath
-			portalImpl
-		}
-
-		dependencies {
-			archives "$rootDir/dist"
-
-			buildCssClasspath(
-				[group: 'com.liferay',			name: 'com.liferay.ruby-gems',	version: '1.00'],
-				[group: 'javax.portlet',		name: 'portlet-api',			version: '2.0'],
-				[group: 'org.apache.ant',		name: 'ant',					version: '1.8.2'],
-				[group: 'org.jruby',			name: 'jruby-complete',			version: '1.6.5'],
-				[group: 'org.mozilla',			name: 'rhino',					version: '1.7R4'],
-				[group: 'org.springframework',	name: 'spring-web',				version: '3.2.10.RELEASE'],
-				[group: 'struts',				name: 'struts',					version: '1.2.9']
-			)
-
-			portalImpl group: 'com.liferay.portal', name: 'portal-impl', version: '7.0.0-SNAPSHOT'
-		}
-
 		ext {
+			// Get project properties
+
+			File projectPropertiesFile = new File("$projectDir/gradle.properties")
+
+			if (projectPropertiesFile.exists()) {
+				Properties projectProperties = new Properties()
+
+				projectProperties.load(new FileInputStream(projectPropertiesFile))
+
+				dependencyProjects = projectProperties.dependencyProjects
+			}
+
 			// Check if plugin is OSGi type
 
 			if (file("bnd.bnd").exists()) {
@@ -181,6 +169,36 @@ allprojects {
 			// Misc properties
 
 			liferayHookXml = file("$projectDir/docroot/WEB-INF/liferay-hook.xml")
+		}
+
+		configurations {
+			all {
+				resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+			}
+			buildCssClasspath.extendsFrom basePortalClasspath
+			portalImpl
+		}
+
+		dependencies {
+			archives "$rootDir/dist"
+
+			if (project.hasProperty("dependencyProjects")) {
+				dependencyProjects.split(",").each {
+					compile project(it)
+				}
+			}
+
+			buildCssClasspath(
+				[group: 'com.liferay',			name: 'com.liferay.ruby-gems',	version: '1.00'],
+				[group: 'javax.portlet',		name: 'portlet-api',			version: '2.0'],
+				[group: 'org.apache.ant',		name: 'ant',					version: '1.8.2'],
+				[group: 'org.jruby',			name: 'jruby-complete',			version: '1.6.5'],
+				[group: 'org.mozilla',			name: 'rhino',					version: '1.7R4'],
+				[group: 'org.springframework',	name: 'spring-web',				version: '3.2.10.RELEASE'],
+				[group: 'struts',				name: 'struts',					version: '1.2.9']
+			)
+
+			portalImpl group: 'com.liferay.portal', name: 'portal-impl', version: '7.0.0-SNAPSHOT'
 		}
 
 		// Set java source directory
