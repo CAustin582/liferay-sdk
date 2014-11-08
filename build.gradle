@@ -80,7 +80,7 @@ task unzipCommonCss(type: Copy) {
 	from(zipTree(configurations.portalWeb.singleFile)) {
 		include "html/css/common/**/*"
 	}
-	into "$sdkDir/dist"
+	into "$rootDir/dist"
 }
 
 allprojects {
@@ -228,12 +228,16 @@ allprojects {
 			args = [
 				"sass.dir=/",
 				"sass.docroot.dir=$projectDir/docroot",
-				"sass.portal.common.dir=$sdkDir/dist/html/css/common"
+				"sass.portal.common.dir=$rootDir/dist/html/css/common"
 			]
 			classpath = configurations.buildCssClasspath
 			dependsOn compileJava
 			dependsOn rootProject.unzipCommonCss
 			main = "com.liferay.portal.tools.SassToCssBuilder"
+
+			onlyIf {
+				file("$projectDir/docroot").exists()
+			}
 		}
 
 		compile.dependsOn(compileJava)
@@ -304,6 +308,7 @@ allprojects {
 				}
 			}
 
+			dependsOn buildCss
 			dependsOn cleanWar
 			from "docroot"
 			exclude "_diffs.*", "_diffs/**"
