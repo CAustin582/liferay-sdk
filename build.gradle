@@ -1,7 +1,5 @@
-import com.liferay.portal.kernel.util.ReleaseInfo
-
 ext {
-	appServerParentDir = "$sdkDir/appServerParentPath"
+	appServerParentDir = "$sdkDir/$appServerParentPath"
 	appServerVersion = getProperty(appServerType + ".appServerVersion")
 	appServerDir = "$appServerParentDir/$appServerType-$appServerVersion"
 	appServerDeployPath = getProperty(appServerType + ".appServerDeployPath")
@@ -17,26 +15,6 @@ ext {
 
 task wrapper(type: Wrapper) {
 	gradleVersion = '2.1'
-}
-
-buildscript {
-	configurations.all {
-		resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-	}
-
-	repositories {
-		maven {
-			url 'http://repository.liferay.com/nexus/content/groups/public'
-		}
-		mavenCentral()
-	}
-
-	dependencies {
-		classpath(
-			[group: 'com.liferay.portal',	name: 'portal-service',	version: '7.0.0-SNAPSHOT'],
-			[group: 'org.dm.gradle',		name: 'bundle',			version: '0.4']
-		)
-	}
 }
 
 configurations {
@@ -61,12 +39,8 @@ allprojects {
 	task copyTlds
 	task deploy
 	task directDeploy
-	task getGemVersions
 	task merge(type: Copy)
 	task mergeLanguageKeys(type: Copy)
-	
-	task unzipOriginalWarFile(type: Copy)
-	task warAlloyPortlet
 
 	repositories {
 		maven {
@@ -78,7 +52,9 @@ allprojects {
 
 task unzipCommonCss(type: Copy) {
 	from(zipTree(configurations.portalWeb.singleFile)) {
+		include "docroot/WEB-INF/tld/**/*"
 		include "html/css/common/**/*"
+		include "html/themes/**/*"
 	}
 	into "$rootDir/dist"
 }
@@ -87,10 +63,12 @@ allprojects {
 	if (file("$projectDir/docroot").exists() ||
 		file("$projectDir/src").exists()) {
 
+		apply from: projectDir.toString() + '/build.gradle'
+
+		File projectPropertiesFile = new File("$projectDir/gradle.properties")
+
 		ext {
 			// Get project properties
-
-			File projectPropertiesFile = new File("$projectDir/gradle.properties")
 
 			if (projectPropertiesFile.exists()) {
 				Properties projectProperties = new Properties()
@@ -151,21 +129,6 @@ allprojects {
 				"-Ddeployer.util.taglib.dtd=$appServerPortalDir/WEB-INF/tld/liferay-util.tld"]
 			deployerJvmArgsWeb="-Ddeployer.tomcat.lib.dir=$appServerLibGlobalDir"
 
-			// Set OSGi properties
-
-			if (osgiPlugin == true) {
-				autoDeployDir = getXMLProp("auto.deploy.dir", autoDeployDir)
-				ignoreOsgiPortalClasspath =
-					getXMLProp("ignore.osgi.portal.classpath", "")
-				moduleAutoDeployDir =
-					getXMLProp("module.auto.deploy.dir", autoDeployDir)
-				osgiIdeDependencies = getXMLProp("osgi.ide.dependencies", "")
-				osgiRuntimeDependencies =
-					getXMLProp("osgi.runtime.dependencies", "")
-				osgiRuntimeDependenciesFiles = fileTree(dir: pluginLibDir,
-					include: osgiRuntimeDependencies)
-			}
-
 			// Misc properties
 
 			liferayHookXml = file("$projectDir/docroot/WEB-INF/liferay-hook.xml")
@@ -182,7 +145,8 @@ allprojects {
 		dependencies {
 			archives "$rootDir/dist"
 
-			if (project.hasProperty("dependencyProjects")) {
+			if (project.hasProperty("dependencyProjects") &&
+				dependencyProjects != null) {
 				dependencyProjects.split(",").each {
 					compile project(it)
 				}
@@ -251,7 +215,7 @@ allprojects {
 
 				doLast {
 					copy {
-						from pluginFile
+						from war.outputs
 						into autoDeployDir
 					}
 				}
@@ -259,6 +223,9 @@ allprojects {
 
 			if (osgiPlugin == true) {
 				doFirst {
+					osgiRuntimeDependenciesFiles = fileTree(dir: pluginLibDir,
+						include: osgiRuntimeDependencies)
+
 					copy {
 						from osgiRuntimeDependenciesFiles
 						into moduleAutoDeployDir
@@ -270,26 +237,6 @@ allprojects {
 		jar {
 			dependsOn cleanJar
 			from pluginSrcDir
-
-			/*if (osgiPlugin == true) {
-				apply plugin: "bundle"
-
-				bundle {
-					instruction "app.server.portal.dir", appServerPortalDir
-					instruction "plugin.name", project.name
-					instruction "plugin.version", pluginVersion
-					instruction "javac.compiler", javacCompiler
-					instruction "javac.debug", javacDebug
-					instruction "javac.deprecation", javacDeprecation
-					instruction "javac.encoding", javacEncoding
-					instruction "release.info.vendor", ReleaseInfo.getVendor()
-					instruction "release.info.version", ReleaseInfo.getVersion()
-					instruction "-include", "$sdkDir/common.bnd"
-					instruction "-include", "$projectDir/bnd.bnd"
-				}
-
-				version pluginFullVersion
-			}*/
 		}
 
 		war {
@@ -329,7 +276,9 @@ allprojects {
 	}
 	else {
 		tasks.each {
-			it.enabled = false
+			if (!it.name =~ "[cC]ommon") {
+				it.enabled = false
+			}
 		}
 	}
 }
