@@ -1,18 +1,18 @@
 def commandDir = System.getProperty("user.dir")
 
 if (rootProject.dir.toString() != commandDir.toString()) {
-	pluginsIncludes = commandDir.toString().replaceAll(".+[\\\\/]", "")
+	projectIncludes = commandDir.toString().replaceAll(".+[\\\\/]", "")
 }
 
-String[] pluginsExcludesList =
-	pluginsExcludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
+String[] projectExcludesList =
+	projectExcludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
 
-String[] pluginsIncludesList =
-	pluginsIncludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
+String[] projectIncludesList =
+	projectIncludes.replaceAll(" ", "").replaceAll(",+", ",").split(",")
 
 FileTree projectScripts = fileTree(rootDir) {
-	if (pluginsIncludes != "" && pluginsIncludes != "*") {
-		String[] projectScriptsIncludes = pluginsIncludesList.collect {
+	if (projectIncludes != "" && projectIncludes != "*") {
+		String[] projectScriptsIncludes = projectIncludesList.collect {
 			"**/" + it + "/build.gradle"
 		}
 
@@ -24,8 +24,8 @@ FileTree projectScripts = fileTree(rootDir) {
 		include "**/build.gradle"
 	}
 
-	if (pluginsExcludes != "") {
-		String[] projectScriptsExcludes = pluginsExcludesList.collect {
+	if (projectExcludes != "") {
+		String[] projectScriptsExcludes = projectExcludesList.collect {
 			"**/" + it + "/build.gradle"
 		}
 
@@ -56,8 +56,10 @@ addProject = {
 
 		projectProperties.load(new FileInputStream(projectPropertiesFile))
 
-		projectProperties.dependencyProjects.split(",").each {
-			addProject(it)
+		if (projectProperties.dependencyProjects) {
+			projectProperties.dependencyProjects.split(",").each {
+				addProject(it)
+			}
 		}
 	}
 }
